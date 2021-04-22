@@ -1,13 +1,13 @@
 ## `fastapi-redis-cache`
 
-(badges, eventually)
+[![PyPI version](https://badge.fury.io/py/fastapi-redis-cache.svg)](https://badge.fury.io/py/fastapi-redis-cache) ![PyPI - Downloads](https://img.shields.io/pypi/dm/fastapi-redis-cache?color=%234DC71F) ![PyPI - License](https://img.shields.io/pypi/l/fastapi-redis-cache?color=%25234DC71F) ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/fastapi-redis-cache) [![Maintainability](https://api.codeclimate.com/v1/badges/4a1753c77add039c3850/maintainability)](https://codeclimate.com/github/a-luna/fastapi-redis-cache/maintainability) [![codecov](https://codecov.io/gh/a-luna/fastapi-redis-cache/branch/master/graph/badge.svg)](https://codecov.io/gh/a-luna/fastapi-redis-cache)
+
 
 ### Installation
 
 `pip install fastapi-redis-cache`
 
 ### Usage
-
 
 On startup, initialize the cache with the URL of the Redis server. The name of the custom header field used to identify cache hits/misses can also be customized. If `response_header` is not specified, the custom header field will be named `X-FastAPI-Cache`
 
@@ -81,7 +81,6 @@ content-length: 65
 content-type: text/plain; charset=utf-8
 date: Wed, 21 Apr 2021 07:26:34 GMT
 server: uvicorn
-
 {
     "message": "this data can be cached indefinitely",
     "success": true

@@ -3,7 +3,6 @@ import os
 from typing import Tuple
 
 import redis
-from fakeredis import FakeRedis
 from pydantic import RedisDsn
 
 from fastapi_redis_cache.enums import RedisStatus
@@ -25,4 +24,6 @@ def _connect(host_url: RedisDsn) -> Tuple[RedisStatus, redis.client.Redis]:
 
 
 def _connect_fake() -> Tuple[RedisStatus, redis.client.Redis]:
+    from fakeredis import FakeRedis
+
     return (RedisStatus.CONNECTED, FakeRedis())
