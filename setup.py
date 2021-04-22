@@ -4,7 +4,7 @@ from pathlib import Path
 
 from setuptools import find_packages, setup
 
-DESCRIPTION = "`fastapi-redis-cache` provides a simple way to cache response data for API endpoints using Redis."
+DESCRIPTION = "A simple and robust caching solution for FastAPI endpoints, fueled by the unfathomable power of Redis."
 APP_ROOT = Path(__file__).parent
 README = (APP_ROOT / "README.md").read_text().strip()
 AUTHOR = "Aaron Luna"
