@@ -1,0 +1,13 @@
+prune tests
+prune .github
+exclude .env
+exclude .gitignore
+exclude .python-version
+include src/vigorish/setup/csv/*.csv
+include src/vigorish/setup/json/*.json
+include src/vigorish/nightmarejs/list_functions.js
+include src/vigorish/nightmarejs/new_nightmare.js
+include src/vigorish/nightmarejs/scrape_job.js
+include src/vigorish/nightmarejs/scrape_urls.js
+include src/vigorish/nightmarejs/package.json
+global-exclude *.py[cod]

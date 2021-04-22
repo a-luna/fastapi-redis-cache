@@ -1,0 +1,11 @@
+venv
+coverage_html
+.vscode
+.tox
+.coverage
+.env
+.python-version
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/

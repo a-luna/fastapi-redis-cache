@@ -1,0 +1,9 @@
+feature: feature/*
+enhancement: enhancement/*
+bug-fix: ["bug-fix/*", "fix/*"]
+refactoring: refactoring/*
+chore: chore/*
+dependencies: ["bump/*", "Bump *"]
+patch: patch-release/*
+minor: minor-release/*
+major: major-release/*

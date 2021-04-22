@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools >= 40.6.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.black]
+line-length = 120
+target-version = ['py38']
+include = '\.pyi?$'
+exclude =  '''
+/(
+    \.eggs
+    | \.git
+    | \.hg
+    | \.mypy_cache
+    | \.pytest_cache
+    | \.tox
+    | \.vscode
+    | __pycache__
+    | _build
+    | buck-out
+    | build
+    | dist
+    | venv
+)/
+'''
+
+[tool.isort]
+ensure_newline_before_comments = true
+skip_gitignore = true
+line_length = 100
+multi_line_output = 3
+use_parentheses = true
+include_trailing_comma = true
+force_alphabetical_sort_within_sections = true
+color_output = true
