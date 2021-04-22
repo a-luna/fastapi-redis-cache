@@ -2,7 +2,7 @@ name: Release Drafter
 on:
   push:
     branches:
-      - master
+      - main
 
 jobs:
   update_release_draft:
@@ -11,4 +11,4 @@ jobs:
       # Drafts your next Release notes as Pull Requests are merged into "master"
       - uses: release-drafter/release-drafter@v5.11.0
         env:
-          GITHUB_TOKEN: ${{ secrets.REPO_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
