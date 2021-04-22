@@ -6,7 +6,10 @@
 
 `pip install fastapi-redis-cache`
 
-### Usage Examples
+### Usage
+
+
+On startup, initialize the cache with the URL of the Redis server. The name of the custom header field used to identify cache hits/misses can also be customized. If `response_header` is not specified, the custom header field will be named `X-FastAPI-Cache`
 
 ```python
 import os
@@ -19,11 +22,6 @@ CACHE_HEADER = "X-MyAPI-Cache"
 
 app = FastAPI(title="FastAPI Redis Cache Example")
 
-
-# On startup, initialize the cache with the URL of the Redis server.
-# The name of the custom header field used to identify cache hits/misses
-# can also be customized, but this is optional. The default name for the
-# custom header field is "X-FastAPI-Cache"
 @app.on_event("startup")
 def startup():
     redis_cache = FastApiRedisCache()
@@ -31,22 +29,24 @@ def startup():
         host_url=os.environ.get("REDIS_URL", LOCAL_REDIS_URL),
         response_header=CACHE_HEADER
     )
+```
 
+Even if the cache has been initialized, you must apply the `@cache` decorator to each route to enable caching:
 
-# Data from this endpoint WILL NOT be cached
+```python
+# WILL NOT be cached
 @app.get("/data_no_cache")
 def get_data():
     return {"success": True, "message": "this is the data you requested"}
 
-
-# Decorating a path function with @cache enables caching for the endpoint.
-# If no arguments are provided, responses will be set to expire after 1 year,
-# which, historically, is the correct way to mark data that "never expires".
+# Will be cached
 @app.get("/immutable_data")
 @cache()
 async def get_immutable_data():
     return {"success": True, "message": "this data can be cached indefinitely"}
 ```
+
+Decorating a path function with `@cache` enables caching for the endpoint. If no arguments are provided, responses will be set to expire after 1 year, which, historically, is the correct way to mark data that "never expires".
 
 Response data for the API endpoint at `/immutable_data` will be cached by the Redis server. Log messages are written to standard output whenever a response is added to the cache, or a response is retrieved from the cache:
 
@@ -72,9 +72,9 @@ def get_dynamic_data(request: Request, response: Response):
     return {"success": True, "message": "this data should only be cached temporarily"}
 ```
 
-If `request` and `response` are found in the path operation function, `FastApiRedisCache` can read the request header fields and modify the response header fields that are sent. To understand the difference, here is the full HTTP response for a request for `/immutable_data`:
+If `request` and `response` are found in the path operation function, `FastApiRedisCache` can read the request header fields and modify the header fields sent with the response. To understand the difference, here is the full HTTP response for a request for `/immutable_data` (Remember, this is the first endpoint that was demonstrated and this path function **DOES NOT** contain a `Request` or `Response` object):
 
-```shell-session
+```console
 $ http "http://127.0.0.1:8000/immutable_data"
 HTTP/1.1 200 OK
 content-length: 65
@@ -88,9 +88,9 @@ server: uvicorn
 }
 ```
 
-Next, here is the HTTP responses for `/dynamic_data`. Notice the addition of the following headers: `cache-control`, `etag`, and `expires`:
+Next, here is the HTTP response for the `/dynamic_data` endpoint. Notice the addition of the following headers: `cache-control`, `etag`, and `expires`:
 
-```shell-session
+```console
 $ http "http://127.0.0.1:8000/dynamic_data"
   HTTP/1.1 200 OK
   cache-control: max-age=29
@@ -107,4 +107,6 @@ $ http "http://127.0.0.1:8000/dynamic_data"
   }
 ```
 
-This response also includes the `x-fastapi-cache` header field which tells us that this response was found in the Redis cache (a.k.a. a `Hit`). If these requests were made from a web browser, and a request for the same resource was sent before `expires`, the browser would automatically serve the cached version and the request would never even be sent to the FastAPI server!
+The header fields indicate that this response will be considered fresh for 29 seconds. This is expected since `expire_after_seconds=30` was specified in the `@cache` decorator for the `/dynamic_data` endpoint.
+
+This response also includes the `x-fastapi-cache` header field which tells us that this response was found in the Redis cache (a.k.a. a `Hit`). If these requests were made from a web browser, and a request for the same resource was sent before the cached response expires, the browser would automatically serve the cached version and the request would never even be sent to the FastAPI server!
