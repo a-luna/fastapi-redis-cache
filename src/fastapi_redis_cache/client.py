@@ -47,6 +47,10 @@ class FastApiRedisCache(metaclass=MetaSingleton):
     def connected(self):
         return self.status == RedisStatus.CONNECTED
 
+    @property
+    def not_connected(self):
+        return not self.connected
+
     def connect(
         self,
         host_url: RedisDsn,
@@ -55,6 +59,15 @@ class FastApiRedisCache(metaclass=MetaSingleton):
         allow_request_types: List[str] = None,
         ignore_arg_types: Optional[List[Type[object]]] = None,
     ) -> None:
+        """Connect to a Redis database using `host_url` and configure cache settings.
+
+        Args:
+            host_url (RedisDsn): [description]
+            prefix (str, optional): [description]. Defaults to None.
+            response_header (Optional[str], optional): [description]. Defaults to None.
+            allow_request_types (List[str], optional): [description]. Defaults to None.
+            ignore_arg_types (Optional[List[Type[object]]], optional): [description]. Defaults to None.
+        """
         self.host_url = host_url
         self.prefix = prefix
         self.response_header = response_header or DEFAULT_RESPONSE_HEADER
@@ -67,19 +80,19 @@ class FastApiRedisCache(metaclass=MetaSingleton):
         self.status, self.redis = redis_connect(self.host_url)
         if self.status == RedisStatus.CONNECTED:
             self.log(RedisEvent.CONNECT_SUCCESS, msg="Redis client is connected to server.")
-        if self.status == RedisStatus.AUTH_ERROR:
+        if self.status == RedisStatus.AUTH_ERROR:  # pragma: no cover
             self.log(RedisEvent.CONNECT_FAIL, msg="Unable to connect to redis server due to authentication error.")
-        if self.status == RedisStatus.CONN_ERROR:
+        if self.status == RedisStatus.CONN_ERROR:  # pragma: no cover
             self.log(RedisEvent.CONNECT_FAIL, msg="Redis server did not respond to PING message.")
 
-    def request_is_cacheable(self, request: Request) -> bool:
-        return not request or (
-            request.method in self.allow_request_types
-            and all(directive not in request.headers.get("Cache-Control", "") for directive in ["no-store", "no-cache"])
+    def request_is_not_cacheable(self, request: Request) -> bool:
+        return request and (
+            request.method not in self.allow_request_types
+            or any(directive in request.headers.get("Cache-Control", "") for directive in ["no-store", "no-cache"])
         )
 
     def get_cache_key(self, func: Callable, *args: List, **kwargs: Dict) -> str:
-        return get_cache_key(func, self.ignore_arg_types, *args, **kwargs)
+        return get_cache_key(func, self.prefix, self.ignore_arg_types, *args, **kwargs)
 
     def check_cache(self, key: str) -> Tuple[int, str]:
         pipe = self.redis.pipeline()
@@ -105,7 +118,7 @@ class FastApiRedisCache(metaclass=MetaSingleton):
     ) -> None:
         if self.redis.set(name=key, value=self.serialize_json(value), ex=ex, px=px):
             self.log(RedisEvent.KEY_ADDED_TO_CACHE, key=key)
-        else:
+        else:  # pragma: no cover
             self.log(RedisEvent.FAILED_TO_CACHE_KEY, key=key, value=value)
 
     def set_response_headers(
@@ -127,7 +140,7 @@ class FastApiRedisCache(metaclass=MetaSingleton):
             message += f": {msg}"
         if key:
             message += f": key={key}"
-        if value:
+        if value:  # pragma: no cover
             message += f", value={value}"
         logger.info(message)
 
