@@ -22,7 +22,7 @@ class BetterJsonEncoder(json.JSONEncoder):
             return {"val": obj.strftime(DATE_ONLY), "_spec_type": str(date)}
         elif isinstance(obj, Decimal):
             return {"val": str(obj), "_spec_type": str(Decimal)}
-        else:
+        else:  # pragma: no cover
             return super().default(obj)
 
 
