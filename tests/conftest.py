@@ -10,5 +10,5 @@ def test_setup(request):
     """Setup TEST environment to use FakeRedis."""
     os.environ["CACHE_ENV"] = "TEST"
     redis_cache = FastApiRedisCache()
-    redis_cache.connect(host_url="")
+    redis_cache.init(host_url="")
     return True
