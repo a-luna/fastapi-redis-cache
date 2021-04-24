@@ -109,14 +109,9 @@ class FastApiRedisCache(metaclass=MetaSingleton):
             return True
         return self.get_etag(cached_data) in check_etags
 
-    def add_to_cache(
-        self,
-        key: str,
-        value: str,
-        ex: Optional[Union[int, timedelta]] = None,
-        px: Optional[Union[int, timedelta]] = None,
-    ) -> None:
-        if self.redis.set(name=key, value=self.serialize_json(value), ex=ex, px=px):
+    def add_to_cache(self, key: str, value: Dict, expire_after_seconds: Optional[Union[int, timedelta]] = None) -> None:
+        expire_after_seconds = expire_after_seconds or ONE_YEAR_IN_SECONDS
+        if self.redis.set(name=key, value=self.serialize_json(value), ex=expire_after_seconds):
             self.log(RedisEvent.KEY_ADDED_TO_CACHE, key=key)
         else:  # pragma: no cover
             self.log(RedisEvent.FAILED_TO_CACHE_KEY, key=key, value=value)
@@ -125,7 +120,6 @@ class FastApiRedisCache(metaclass=MetaSingleton):
         self, response: Response, cache_hit: bool, response_data: str = None, ttl: int = None
     ) -> None:
         response.headers[self.response_header] = "Hit" if cache_hit else "Miss"
-        ttl = ttl if ttl != -1 else ONE_YEAR_IN_SECONDS
         expires_at = datetime.utcnow() + timedelta(seconds=ttl)
         response.headers["Expires"] = expires_at.strftime(HTTP_TIME)
         response.headers["Cache-Control"] = f"max-age={ttl}"

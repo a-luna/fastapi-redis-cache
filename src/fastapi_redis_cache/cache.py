@@ -1,6 +1,5 @@
 """cache.py"""
 import asyncio
-import math
 from datetime import timedelta
 from functools import wraps
 from http import HTTPStatus
@@ -11,16 +10,12 @@ from fastapi import Response
 from fastapi_redis_cache.client import FastApiRedisCache
 
 
-def cache(
-    *,
-    expire_after_seconds: Union[int, timedelta] = None,
-    expire_after_milliseconds: Union[int, timedelta] = None,
-):
+def cache(*, expire_after_seconds: Union[int, timedelta] = None):
     """Enable caching behavior for the decorated function.
 
     If no arguments are provided, this marks the response data for the decorated
     path function as "never expires". In this case, the `Expires` and
-    `Cache-Control max-age`  headers will be set to expire after one year.
+    `Cache-Control: max-age`  headers will be set to expire after one year.
     Historically, this was the furthest time in the future that was allowed for
     these fields. This is no longer the case, but it is still not advisable to use
     values greater than one year.
@@ -28,8 +23,6 @@ def cache(
     Args:
         expire_after_seconds (Union[int, timedelta], optional): The number of seconds
             from now when the cached response should expire. Defaults to None.
-        expire_after_milliseconds (Union[int, timedelta], optional): The number of
-            milliseconds from now when the cached response should expire. Defaults to None.
     """
 
     def outer_wrapper(func):
@@ -61,8 +54,7 @@ def cache(
                     return Response(content=in_cache, media_type="application/json", headers=response.headers)
                 return cached_data
             response_data = await get_api_response_async(func, *args, **kwargs)
-            redis_cache.add_to_cache(key, response_data, expire_after_seconds, expire_after_milliseconds)
-            ttl = calculate_ttl(expire_after_seconds, expire_after_milliseconds)
+            redis_cache.add_to_cache(key, response_data, expire_after_seconds)
             redis_cache.set_response_headers(response, cache_hit=False, response_data=response_data, ttl=ttl)
             if create_response_directly:
                 return Response(
@@ -80,12 +72,3 @@ def cache(
 async def get_api_response_async(func, *args, **kwargs):
     """Helper function that allows decorator to work with both async and non-async functions."""
     return await func(*args, **kwargs) if asyncio.iscoroutinefunction(func) else func(*args, **kwargs)
-
-
-def calculate_ttl(expire_s, expire_ms):
-    if (not expire_s and not expire_ms) or (expire_s == 0 and expire_ms == 0):
-        return -1
-    expire_s = expire_s or 0
-    expire_ms = expire_ms or 0
-    ttl = expire_s + math.floor(expire_ms / 1000)
-    return ttl or 1
