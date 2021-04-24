@@ -152,10 +152,10 @@ class FastApiRedisCache(metaclass=MetaSingleton):
 
     @staticmethod
     def get_etag(cached_data: Union[str, Dict]) -> str:
-        if isinstance(cached_data, dict):
-            cached_data = serialize_json(cached_data)
         if isinstance(cached_data, bytes):
             cached_data = cached_data.decode()
+        if not isinstance(cached_data, str):
+            cached_data = serialize_json(cached_data)
         return f"W/{hash(cached_data)}"
 
     @staticmethod
