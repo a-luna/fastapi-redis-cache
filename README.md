@@ -1,20 +1,26 @@
-# `fastapi-redis-cache`
+## `fastapi-redis-cache`
 
-[![PyPI version](https://badge.fury.io/py/fastapi-redis-cache.svg)](https://badge.fury.io/py/fastapi-redis-cache) ![PyPI - Downloads](https://img.shields.io/pypi/dm/fastapi-redis-cache?color=%234DC71F) ![PyPI - License](https://img.shields.io/pypi/l/fastapi-redis-cache?color=%25234DC71F) ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/fastapi-redis-cache) [![Maintainability](https://api.codeclimate.com/v1/badges/ec0b1d7afb21bd8c23dc/maintainability)](https://codeclimate.com/github/a-luna/fastapi-redis-cache/maintainability) [![Test Coverage](https://api.codeclimate.com/v1/badges/ec0b1d7afb21bd8c23dc/test_coverage)](https://codeclimate.com/github/a-luna/fastapi-redis-cache/test_coverage)
+[![PyPI version](https://badge.fury.io/py/fastapi-redis-cache.svg)](https://badge.fury.io/py/fastapi-redis-cache)
+![PyPI - Downloads](https://img.shields.io/pypi/dm/fastapi-redis-cache?color=%234DC71F)
+![PyPI - License](https://img.shields.io/pypi/l/fastapi-redis-cache?color=%25234DC71F)
+![PyPI - Python Version](https://img.shields.io/pypi/pyversions/fastapi-redis-cache)
+[![Maintainability](https://api.codeclimate.com/v1/badges/ec0b1d7afb21bd8c23dc/maintainability)](https://codeclimate.com/github/a-luna/fastapi-redis-cache/maintainability)
+[![Test Coverage](https://api.codeclimate.com/v1/badges/ec0b1d7afb21bd8c23dc/test_coverage)](https://codeclimate.com/github/a-luna/fastapi-redis-cache/test_coverage)
+
+### Features
 
 - Cache response data for async and non-async path operation functions.
-  - Response data is only cached for `GET` operations, applying `@cache` decorator to path functions for other HTTP method types will have no effect.
 - Lifetime of cached data is configured separately for each API endpoint.
-- Requests with `Cache-Control` header containing `no-cache` or `no-store`are handled correctly (all caching behavior is disabled).
+- Requests with `Cache-Control` header containing `no-cache` or `no-store` are handled correctly (all caching behavior is disabled).
 - Requests with `If-None-Match` header will receive a response with status `304 NOT MODIFIED` if `ETag` for requested resource matches header value.
 
-## Installation
+### Installation
 
 `pip install fastapi-redis-cache`
 
-## Usage
+### Usage
 
-### Initialize Redis
+#### Initialize Redis
 
 Create a `FastApiRedisCache` instance when your application starts by [defining an event handler for the `"startup"` event](https://fastapi.tiangolo.com/advanced/events/) as shown below:
 
@@ -48,9 +54,9 @@ After creating the instance, you must call the `init` method. The only required 
 - `ignore_arg_types` (`List[Type[object]]`) &mdash; Cache keys are created (in part) by combining the name and value of each argument used to invoke a path operation function. If any of the arguments have no effect on the response (such as a `Request` or `Response` object), including their type in this list will ignore those arguments when the key is created. (_Optional_, defaults to `[Request, Response]`)
   - The example shown here includes the `sqlalchemy.orm.Session` type, if your project uses SQLAlchemy as a dependency ([as demonstrated in the FastAPI docs](https://fastapi.tiangolo.com/tutorial/sql-databases/)), you should include `Session` in `ignore_arg_types` in order for cache keys to be created correctly ([More info](#cache-keys)).
 
-### `@cache` Decorator
+#### `@cache` Decorator
 
-Decorating a path function with `@cache` enables caching for the endpoint. If no arguments are provided, responses will be set to expire after 1 year, which, historically, is the correct way to mark data that "never expires".
+Decorating a path function with `@cache` enables caching for the endpoint. **Response data is only cached for `GET` operations**, decorating path functions for other HTTP method types will have no effect. If no arguments are provided, responses will be set to expire after 1 year, which, historically, is the correct way to mark data that "never expires".
 
 ```python
 # WILL NOT be cached
@@ -87,7 +93,7 @@ def get_dynamic_data(request: Request, response: Response):
     return {"success": True, "message": "this data should only be cached temporarily"}
 ```
 
-### Response Headers
+#### Response Headers
 
 Below is the HTTP response for the `/dynamic_data` endpoint. The `cache-control`, `etag`, `expires`, and `x-fastapi-cache` headers are added because of the `@cache` decorator:
 
@@ -117,9 +123,9 @@ If this request was made from a web browser, and a request for the same resource
 
 Similarly, if a request is sent with the `cache-control` header containing `no-cache` or `no-store`, all caching behavior will be disabled and the response will be generated and sent as if endpoint had not been decorated with `@cache`.
 
-### Cache Keys
+#### Cache Keys
 
-Consider the `/get_item` API route defined below. This is the first path function we have seen where the response depends on the value of an argument (`user_id: int`). This is a typical CRUD operation where `user_id` is used to retrieve a `User` record from a SQLAlchemy database.
+Consider the `/get_user` API route defined below. This is the first path function we have seen where the response depends on the value of an argument (`user_id: int`). This is a typical CRUD operation where `user_id` is used to retrieve a `User` record from a SQLAlchemy database.
 
 ```python
 @app.get("/get_user", response_model=schemas.User)
@@ -177,6 +183,6 @@ INFO:fastapi_redis_cache.client: 04/23/2021 07:04:12 PM | KEY_FOUND_IN_CACHE: ke
 INFO:     127.0.0.1:50761 - "GET /get_user?user_id=1 HTTP/1.1" 200 OK
 ```
 
-## Questions/Contributions
+### Questions/Contributions
 
 If you have any questions, please open an issue. Any suggestions and contributions are absolutely welcome. This is still a very small and young project, I plan on adding a feature roadmap and further documentation in the near future.
