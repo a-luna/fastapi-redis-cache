@@ -36,7 +36,7 @@ jobs:
       - name: Upload Coverage Report To Code Climate
         uses: paambaati/codeclimate-action@v2.6.0
         env:
-          CC_TEST_REPORTER_ID: d5526599ee5960a785d7bcea388c403e8cc9ead6f18223c6b5f7dca22c94cb46
+          CC_TEST_REPORTER_ID: 30e873c5c03b343557ede56965b7e94146a21b8cbe357569f6a45365f6afaaa3
         with:
           coverageCommand: python -m coverage xml
       - name: "Upload coverage to Codecov"
