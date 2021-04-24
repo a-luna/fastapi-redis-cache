@@ -9,9 +9,6 @@ class RedisStatus(IntEnum):
     AUTH_ERROR = 2
     CONN_ERROR = 3
 
-    def __str__(self):
-        return self.name
-
 
 class RedisEvent(IntEnum):
     """Redis client events."""
@@ -22,6 +19,3 @@ class RedisEvent(IntEnum):
     KEY_ADDED_TO_CACHE = 4
     KEY_FOUND_IN_CACHE = 5
     FAILED_TO_CACHE_KEY = 6
-
-    def __str__(self):
-        return self.name
