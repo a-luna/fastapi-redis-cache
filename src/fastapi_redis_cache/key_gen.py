@@ -30,6 +30,7 @@ def get_cache_key(func: Callable, prefix: str, ignore_arg_types: List[ArgType], 
     if not ignore_arg_types:
         ignore_arg_types = []
     ignore_arg_types.extend(ALWAYS_IGNORE_ARG_TYPES)
+    ignore_arg_types = list(set(ignore_arg_types))
     prefix = f"{prefix}:" if prefix else ""
 
     sig = signature(func)
@@ -48,7 +49,7 @@ def get_func_args(sig: Signature, *args: List, **kwargs: Dict) -> "OrderedDict[s
 
 def get_args_str(sig_params: SigParameters, func_args: "OrderedDict[str, Any]", ignore_arg_types: List[ArgType]) -> str:
     """Return a string with the name and value of all args whose type is not included in `ignore_arg_types`"""
-    return "_".join(
+    return ",".join(
         f"{arg}={val}" for arg, val in func_args.items() if not ignore_arg_type(arg, sig_params, ignore_arg_types)
     )
 
