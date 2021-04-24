@@ -30,7 +30,7 @@ def object_hook(obj):
     if "_spec_type" not in obj:
         return obj
     _spec_type = obj["_spec_type"]
-    if _spec_type not in SERIALIZE_OBJ_MAP:
+    if _spec_type not in SERIALIZE_OBJ_MAP:  # pragma: no cover
         raise TypeError(f'"{obj["val"]}" (type: {_spec_type}) is not JSON serializable')
     return SERIALIZE_OBJ_MAP[_spec_type](obj["val"])
 
