@@ -56,15 +56,15 @@ After creating the instance, you must call the `init` method. The only required 
 
 #### `@cache` Decorator
 
-Decorating a path function with `@cache` enables caching for the endpoint. **Response data is only cached for `GET` operations**, decorating path functions for other HTTP method types will have no effect. If no arguments are provided, responses will be set to expire after 1 year, which, historically, is the correct way to mark data that "never expires".
+Decorating a path function with `@cache` enables caching for the endpoint. **Response data is only cached for `GET` operations**, decorating path functions for other HTTP method types will have no effect. If no arguments are provided, responses will be set to expire after one year, which, historically, is the correct way to mark data that "never expires".
 
 ```python
 # WILL NOT be cached
 @app.get("/data_no_cache")
 def get_data():
-    return {"success": True, "message": "this is the data you requested"}
+    return {"success": True, "message": "this data is not cacheable, for... you know, reasons"}
 
-# Will be cached
+# Will be cached for one year
 @app.get("/immutable_data")
 @cache()
 async def get_immutable_data():
@@ -87,6 +87,7 @@ The log messages show two successful (**`200 OK`**) responses to the same reques
 If data for an API endpoint needs to expire, you can specify the number of seconds before it is deleted by Redis using the `expire_after_seconds` parameter:
 
 ```python
+# Will be cached for thirty seconds
 @app.get("/dynamic_data")
 @cache(expire_after_seconds=30)
 def get_dynamic_data(request: Request, response: Response):
@@ -95,7 +96,7 @@ def get_dynamic_data(request: Request, response: Response):
 
 #### Response Headers
 
-Below is the HTTP response for the `/dynamic_data` endpoint. The `cache-control`, `etag`, `expires`, and `x-fastapi-cache` headers are added because of the `@cache` decorator:
+Below is an example HTTP response for the `/dynamic_data` endpoint. The `cache-control`, `etag`, `expires`, and `x-fastapi-cache` headers are added because of the `@cache` decorator:
 
 ```console
 $ http "http://127.0.0.1:8000/dynamic_data"
@@ -115,9 +116,9 @@ $ http "http://127.0.0.1:8000/dynamic_data"
   }
 ```
 
-- The `x-fastapi-cache` header field indicates that this response was found in the Redis cache (a.k.a. a `Hit`).
+- The `x-fastapi-cache` header field indicates that this response was found in the Redis cache (a.k.a. a `Hit`). The only other possible value for this field is `Miss`.
 - The `expires` field and `max-age` value in the `cache-control` field indicate that this response will be considered fresh for 29 seconds. This is expected since `expire_after_seconds=30` was specified in the `@cache` decorator.
-- The `etag` field is an identifier that is computed by converting the response data to a string and applying a hash function. If a request containing the `if-none-match` header is received, the `etag` value will be used to determine if the requested resource has been modified.
+- The `etag` field is an identifier that is created by converting the response data to a string and applying a hash function. If a request containing the `if-none-match` header is received, the `etag` value will be used to determine if the requested resource has been modified.
 
 If this request was made from a web browser, and a request for the same resource was sent before the cached response expires, the browser would automatically serve the cached version and the request would never even be sent to the FastAPI server.
 
@@ -182,6 +183,49 @@ INFO:     127.0.0.1:50761 - "GET /get_user?user_id=1 HTTP/1.1" 200 OK
 INFO:fastapi_redis_cache.client: 04/23/2021 07:04:12 PM | KEY_FOUND_IN_CACHE: key=myapi-cache:api.get_user(user_id=1)
 INFO:     127.0.0.1:50761 - "GET /get_user?user_id=1 HTTP/1.1" 200 OK
 ```
+
+Now, every request for the same `user_id` generates the same key value (`myapi-cache:api.get_user(user_id=1)`). As expected, the first request adds the key/value pair to the cache, and each subsequent request retrieves the value from the cache based on the key.
+
+#### Cache Keys Pt 2.
+
+What about this situation? You create a custom dependency for your API that performs input validation, but you can't ignore it because _**it does**_ have an effect on the response data. There's a simple solution for that, too.
+
+Here is an endpoint from one of my projects:
+
+```python
+@router.get("/scoreboard", response_model=ScoreboardSchema)
+@cache()
+def get_scoreboard_for_date(
+    game_date: MLBGameDate = Depends(), db: Session = Depends(get_db)
+):
+    return get_scoreboard_data_for_date(db, game_date.date)
+```
+
+The `game_date` argument is a `MLBGameDate` type. This is a custom type that parses the value from the querystring to a date, and determines if the parsed date is valid by checking if it is within a certain range. The implementation for `MLBGameDate` is given below:
+
+
+```python
+class MLBGameDate:
+    def __init__(
+        self,
+        game_date: str = Query(..., description="Date as a string in YYYYMMDD format"),
+        db: Session = Depends(get_db),
+    ):
+        try:
+            parsed_date = parse_date(game_date)
+        except ValueError as ex:
+            raise HTTPException(status_code=400, detail=ex.message)
+        result = Season.is_date_in_season(db, parsed_date)
+        if result.failure:
+            raise HTTPException(status_code=400, detail=result.error)
+        self.date = parsed_date
+        self.season = convert_season_to_dict(result.value)
+
+    def __str__(self):
+        return self.date.strftime("%Y-%m-%d")
+```
+
+Please note the custom `__str__` method that overrides the default behavior. This way, instead of `<MLBGameDate object at 0x11c7e35e0>`, the value will be formatted as, for example, `2019-05-09`. You can use this strategy whenever you have an argument that has en effect on the response data but converting that argument to a string results in a value containing the object's memory location.
 
 ### Questions/Contributions
 
