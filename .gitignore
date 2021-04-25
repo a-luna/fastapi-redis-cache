@@ -1,4 +1,6 @@
 venv
+build
+dist
 coverage_html
 .vscode
 .tox
