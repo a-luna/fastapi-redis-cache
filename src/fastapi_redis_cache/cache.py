@@ -46,7 +46,7 @@ def cache(*, expire_after_seconds: Union[int, timedelta] = None):
             ttl, in_cache = redis_cache.check_cache(key)
             if in_cache:
                 if redis_cache.requested_resource_not_modified(request, in_cache):
-                    response.status_code = HTTPStatus.NOT_MODIFIED
+                    response.status_code = int(HTTPStatus.NOT_MODIFIED)
                     return response
                 cached_data = redis_cache.deserialize_json(in_cache)
                 redis_cache.set_response_headers(response, cache_hit=True, response_data=cached_data, ttl=ttl)

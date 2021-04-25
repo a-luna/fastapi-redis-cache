@@ -1,3 +1,3 @@
 # flake8: noqa
-__version_info__ = ("0", "1", "3")  # pragma: no cover
+__version_info__ = ("0", "1", "4")  # pragma: no cover
 __version__ = ".".join(__version_info__)  # pragma: no cover
