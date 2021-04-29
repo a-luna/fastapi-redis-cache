@@ -84,14 +84,57 @@ INFO:     127.0.0.1:61779 - "GET /immutable_data HTTP/1.1" 200 OK
 
 The log messages show two successful (**`200 OK`**) responses to the same request (**`GET /immutable_data`**). The first request executed the `get_immutable_data` function and stored the result in Redis under key `api.get_immutable_data()`. The second request _**did not**_ execute the `get_immutable_data` function, instead the cached result was retrieved and sent as the response.
 
-If data for an API endpoint needs to expire, you can specify the number of seconds before it is deleted by Redis using the `expire_after_seconds` parameter:
+In most situations, response data must expire in a much shorter period of time than one year. Using the `expire` parameter, You can specify the number of seconds before data is deleted:
 
 ```python
 # Will be cached for thirty seconds
 @app.get("/dynamic_data")
-@cache(expire_after_seconds=30)
+@cache(expire=30)
 def get_dynamic_data(request: Request, response: Response):
     return {"success": True, "message": "this data should only be cached temporarily"}
+```
+
+> **NOTE!** `expire` can be either an `int` value or `timedelta` object. When the TTL is very short (like the example above) this results in a decorator that is expressive and requires minimal effort to parse visually. For durations an hour or longer (e.g., `@cache(expire=86400)`), IMHO, using a `timedelta` object is much easier to grok (`@cache(expire=timedelta(days=1))`).
+
+Additionally, the decorators listed below define several common durations and can be used in place of the `@cache` decorator:
+
+- `@cache_one_minute`
+- `@cache_one_hour`
+- `@cache_one_day`
+- `@cache_one_week`
+- `@cache_one_month`
+- `@cache_one_year`
+
+For example, instead of `@cache(expire=timedelta(days=1))`, you could use:
+
+```python
+from fastapi_redis_cache import cache_one_day
+
+@app.get("/cache_one_day")
+@cache_one_day()
+def partial_cache_one_day(response: Response):
+    return {"success": True, "message": "this data should be cached for 24 hours"}
+```
+
+If a duration that you would like to use throughout your project is missing from the list, you can easily create your own:
+
+```python
+from functools import partial, update_wrapper
+from fastapi_redis_cache import cache
+
+ONE_HOUR_IN_SECONDS = 3600
+
+cache_two_hours = partial(cache, expire=ONE_HOUR_IN_SECONDS * 2)
+update_wrapper(cache_two_hours, cache)
+```
+
+Then, simply import `cache_two_hours` and use it to decorate your API endpoint path functions:
+
+```python
+@app.get("/cache_two_hours")
+@cache_two_hours()
+def partial_cache_two_hours(response: Response):
+    return {"success": True, "message": "this data should be cached for two hours"}
 ```
 
 #### Response Headers
@@ -117,7 +160,7 @@ $ http "http://127.0.0.1:8000/dynamic_data"
 ```
 
 - The `x-fastapi-cache` header field indicates that this response was found in the Redis cache (a.k.a. a `Hit`). The only other possible value for this field is `Miss`.
-- The `expires` field and `max-age` value in the `cache-control` field indicate that this response will be considered fresh for 29 seconds. This is expected since `expire_after_seconds=30` was specified in the `@cache` decorator.
+- The `expires` field and `max-age` value in the `cache-control` field indicate that this response will be considered fresh for 29 seconds. This is expected since `expire=30` was specified in the `@cache` decorator.
 - The `etag` field is an identifier that is created by converting the response data to a string and applying a hash function. If a request containing the `if-none-match` header is received, the `etag` value will be used to determine if the requested resource has been modified.
 
 If this request was made from a web browser, and a request for the same resource was sent before the cached response expires, the browser would automatically serve the cached version and the request would never even be sent to the FastAPI server.
@@ -126,16 +169,14 @@ Similarly, if a request is sent with the `cache-control` header containing `no-c
 
 #### Cache Keys
 
-Consider the `/get_user` API route defined below. This is the first path function we have seen where the response depends on the value of an argument (`user_id: int`). This is a typical CRUD operation where `user_id` is used to retrieve a `User` record from a SQLAlchemy database.
+Consider the `/get_user` API route defined below. This is the first path function we have seen where the response depends on the value of an argument (`user_id: int`). This is a typical CRUD operation where `user_id` is used to retrieve a `User` record from a database. The API route also includes a dependency that injects a `Session` object (`db`) into the function, [per the instructions from the FastAPI docs](https://fastapi.tiangolo.com/tutorial/sql-databases/#create-a-dependency):
 
 ```python
 @app.get("/get_user", response_model=schemas.User)
-@cache(expire_after_seconds=3600)
+@cache(expire=3600)
 def get_item(user_id: int, db: Session = Depends(get_db)):
     return db.query(models.User).filter(models.User.id == user_id).first()
 ```
-
-The API route also includes a dependency that injects a Session object (`db`) into the function, [per the instructions from the FastAPI docs](https://fastapi.tiangolo.com/tutorial/sql-databases/#create-a-dependency). This is used to query the database for the `User` corresponding to the `user_id` value.
 
 In the [Initialize Redis](#initialize-redis) section of this document, the `FastApiRedisCache.init` method was called with `ignore_arg_types=[Request, Response, Session]`. Why is it necessary to include `Session` in this list?
 
@@ -144,9 +185,9 @@ Before we can answer that question, we must understand how a cache key is create
 1) The optional `prefix` value provided as an argument to the `FastApiRedisCache.init` method (`"myapi-cache"`).
 2) The module containing the path function (`"api"`).
 3) The name of the path function (`"get_user"`).
-4) The name and value of all arguments to the path function **EXCEPT for arguments with a type that exists in** `ignore_arg_types` (`"user_id=?"`).
+4) The name and value of all arguments to the path function **EXCEPT for arguments with a type that exists in** `ignore_arg_types` (`"user_id=1"`).
 
-Therefore, all response data for the `/get_user` endpoint will have a cache key equal to `"myapi-cache:api.get_user(user_id=?)"` (e.g., for `user_id=1`, the cache key will be `"myapi-cache:api.get_user(user_id=1)"`).
+Therefore, the cache key in this example will be `"myapi-cache:api.get_user(user_id=1)"`).
 
 Even though `db` is an argument to the path function, it is not included in the cache key because it is a `Session` type. If `Session` had not been included in the `ignore_arg_types` list, caching would be completely broken.
 
@@ -203,7 +244,6 @@ def get_scoreboard_for_date(
 
 The `game_date` argument is a `MLBGameDate` type. This is a custom type that parses the value from the querystring to a date, and determines if the parsed date is valid by checking if it is within a certain range. The implementation for `MLBGameDate` is given below:
 
-
 ```python
 class MLBGameDate:
     def __init__(
@@ -225,7 +265,7 @@ class MLBGameDate:
         return self.date.strftime("%Y-%m-%d")
 ```
 
-Please note the custom `__str__` method that overrides the default behavior. This way, instead of `<MLBGameDate object at 0x11c7e35e0>`, the value will be formatted as, for example, `2019-05-09`. You can use this strategy whenever you have an argument that has en effect on the response data but converting that argument to a string results in a value containing the object's memory location.
+Please note the `__str__` method that overrides the default behavior. This way, instead of `<MLBGameDate object at 0x11c7e35e0>`, the value will be formatted as, for example, `2019-05-09`. You can use this strategy whenever you have an argument that has en effect on the response data but converting that argument to a string results in a value containing the object's memory location.
 
 ### Questions/Contributions
 
