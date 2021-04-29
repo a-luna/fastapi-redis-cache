@@ -18,7 +18,7 @@ def _connect(host_url: str) -> Tuple[RedisStatus, redis.client.Redis]:  # pragma
         if redis_client.ping():
             return (RedisStatus.CONNECTED, redis_client)
         return (RedisStatus.CONN_ERROR, None)
-    except redis.RedisAuthenticationError:
+    except redis.AuthenticationError:
         return (RedisStatus.AUTH_ERROR, None)
 
 
