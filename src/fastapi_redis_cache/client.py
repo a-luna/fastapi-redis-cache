@@ -3,17 +3,15 @@ from datetime import datetime, timedelta
 from typing import Callable, Dict, List, Optional, Tuple, Type, Union
 
 from fastapi import Request, Response
-from pydantic import RedisDsn
 from redis import client
 
 from fastapi_redis_cache.enums import RedisEvent, RedisStatus
 from fastapi_redis_cache.key_gen import get_cache_key
 from fastapi_redis_cache.redis import redis_connect
-from fastapi_redis_cache.util import deserialize_json, serialize_json
+from fastapi_redis_cache.util import serialize_json
 
 DEFAULT_RESPONSE_HEADER = "X-FastAPI-Cache"
 ALLOWED_HTTP_TYPES = ["GET"]
-ONE_YEAR_IN_SECONDS = 31535990
 LOG_TIMESTAMP = "%m/%d/%Y %I:%M:%S %p"
 HTTP_TIME = "%a, %d %b %Y %H:%M:%S GMT"
 
@@ -36,10 +34,9 @@ class MetaSingleton(type):
 class FastApiRedisCache(metaclass=MetaSingleton):
     """Communicates with Redis server to cache API response data."""
 
-    host_url: RedisDsn
+    host_url: str
     prefix: str = None
     response_header: str = None
-    allow_request_types: List[str] = []
     status: RedisStatus = RedisStatus.NONE
     redis: client.Redis = None
 
@@ -56,7 +53,6 @@ class FastApiRedisCache(metaclass=MetaSingleton):
         host_url: str,
         prefix: Optional[str] = None,
         response_header: Optional[str] = None,
-        allow_request_types: List[str] = None,
         ignore_arg_types: Optional[List[Type[object]]] = None,
     ) -> None:
         """Connect to a Redis database using `host_url` and configure cache settings.
@@ -96,7 +92,7 @@ class FastApiRedisCache(metaclass=MetaSingleton):
         )
 
     def get_cache_key(self, func: Callable, *args: List, **kwargs: Dict) -> str:
-        return get_cache_key(func, self.prefix, self.ignore_arg_types, *args, **kwargs)
+        return get_cache_key(self.prefix, self.ignore_arg_types, func, *args, **kwargs)
 
     def check_cache(self, key: str) -> Tuple[int, str]:
         pipe = self.redis.pipeline()
@@ -113,12 +109,13 @@ class FastApiRedisCache(metaclass=MetaSingleton):
             return True
         return self.get_etag(cached_data) in check_etags
 
-    def add_to_cache(self, key: str, value: Dict, expire_after_seconds: Optional[Union[int, timedelta]] = None) -> None:
-        expire_after_seconds = expire_after_seconds or ONE_YEAR_IN_SECONDS
-        if self.redis.set(name=key, value=self.serialize_json(value), ex=expire_after_seconds):
+    def add_to_cache(self, key: str, value: Dict, expire: int) -> bool:
+        cached = self.redis.set(name=key, value=serialize_json(value), ex=expire)
+        if cached:
             self.log(RedisEvent.KEY_ADDED_TO_CACHE, key=key)
         else:  # pragma: no cover
             self.log(RedisEvent.FAILED_TO_CACHE_KEY, key=key, value=value)
+        return cached
 
     def set_response_headers(
         self, response: Response, cache_hit: bool, response_data: Dict = None, ttl: int = None
@@ -143,15 +140,7 @@ class FastApiRedisCache(metaclass=MetaSingleton):
         logger.info(message)
 
     @staticmethod
-    def deserialize_json(json_str: str) -> Dict:
-        return deserialize_json(json_str)
-
-    @staticmethod
-    def serialize_json(json_dict: Dict) -> str:
-        return serialize_json(json_dict)
-
-    @staticmethod
-    def get_etag(cached_data: Union[str, Dict]) -> str:
+    def get_etag(cached_data: Union[str, bytes, Dict]) -> str:
         if isinstance(cached_data, bytes):
             cached_data = cached_data.decode()
         if not isinstance(cached_data, str):
