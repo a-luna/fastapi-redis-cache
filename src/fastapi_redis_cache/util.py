@@ -7,6 +7,12 @@ from dateutil import parser
 DATETIME_AWARE = "%m/%d/%Y %I:%M:%S %p %z"
 DATE_ONLY = "%m/%d/%Y"
 
+ONE_HOUR_IN_SECONDS = 3600
+ONE_DAY_IN_SECONDS = ONE_HOUR_IN_SECONDS * 24
+ONE_WEEK_IN_SECONDS = ONE_DAY_IN_SECONDS * 7
+ONE_MONTH_IN_SECONDS = ONE_DAY_IN_SECONDS * 30
+ONE_YEAR_IN_SECONDS = ONE_DAY_IN_SECONDS * 365
+
 SERIALIZE_OBJ_MAP = {
     str(datetime): parser.parse,
     str(date): parser.parse,
