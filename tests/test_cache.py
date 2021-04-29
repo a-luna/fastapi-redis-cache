@@ -1,4 +1,5 @@
 import json
+import re
 import time
 from datetime import datetime
 from decimal import Decimal
@@ -9,6 +10,7 @@ from fastapi_redis_cache.util import deserialize_json
 from tests.main import app
 
 client = TestClient(app)
+MAX_AGE_REGEX = re.compile(r"max-age=(?P<ttl>\d+)")
 
 
 def test_cache_never_expire():
@@ -118,5 +120,17 @@ def test_if_none_match():
     assert response.json() == {"success": True, "message": "this data can be cached indefinitely"}
     assert "x-fastapi-cache" in response.headers and response.headers["x-fastapi-cache"] == "Hit"
     assert "cache-control" in response.headers
+    assert "expires" in response.headers
+    assert "etag" in response.headers
+
+
+def test_partial_cache_one_hour():
+    response = client.get("/cache_one_hour")
+    assert response.status_code == 200
+    assert response.json() == {"success": True, "message": "this data should be cached for one hour"}
+    assert "x-fastapi-cache" in response.headers and response.headers["x-fastapi-cache"] == "Miss"
+    assert "cache-control" in response.headers
+    match = MAX_AGE_REGEX.search(response.headers.get("cache-control"))
+    assert match and int(match.groupdict()["ttl"]) == 3600
     assert "expires" in response.headers
     assert "etag" in response.headers
