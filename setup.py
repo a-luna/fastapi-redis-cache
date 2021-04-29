@@ -21,6 +21,7 @@ CLASSIFIERS = [
     "Operating System :: MacOS :: MacOS X",
     "Operating System :: POSIX :: Linux",
     "Operating System :: Unix",
+    "Programming Language :: Python :: 3.7",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3 :: Only",
@@ -30,6 +31,18 @@ INSTALL_REQUIRES = [
     "pydantic",
     "python-dateutil",
     "redis",
+]
+DEV_REQUIRES = [
+    "black",
+    "coverage",
+    "fakeredis",
+    "flake8",
+    "isort",
+    "pytest",
+    "pytest-cov",
+    "pytest-flake8",
+    "pytest-random-order",
+    "requests",
 ]
 
 exec(open(str(APP_ROOT / "src/fastapi_redis_cache/version.py")).read())
@@ -49,7 +62,8 @@ setup(
     packages=find_packages(where="src"),
     package_dir={"": "src"},
     include_package_data=True,
-    python_requires=">=3.8",
+    python_requires=">=3.7",
     classifiers=CLASSIFIERS,
     install_requires=INSTALL_REQUIRES,
+    extras_require={"dev": DEV_REQUIRES},
 )

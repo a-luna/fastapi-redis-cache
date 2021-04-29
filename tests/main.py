@@ -1,9 +1,9 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 from fastapi import FastAPI, Request, Response
 
-from fastapi_redis_cache import cache
+from fastapi_redis_cache import cache, cache_one_hour
 
 app = FastAPI(title="FastAPI Redis Cache Test App")
 
@@ -15,7 +15,7 @@ def cache_never_expire(request: Request, response: Response):
 
 
 @app.get("/cache_expires")
-@cache(expire_after_seconds=8)
+@cache(expire=timedelta(seconds=8))
 async def cache_expires():
     return {"success": True, "message": "this data should be cached for eight seconds"}
 
@@ -29,3 +29,9 @@ def cache_json_encoder():
         "finish_by": date(2021, 4, 21),
         "final_calc": Decimal(3.14),
     }
+
+
+@app.get("/cache_one_hour")
+@cache_one_hour()
+def partial_cache_one_hour(response: Response):
+    return {"success": True, "message": "this data should be cached for one hour"}
