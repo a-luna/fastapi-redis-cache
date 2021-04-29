@@ -20,6 +20,8 @@ def _connect(host_url: str) -> Tuple[RedisStatus, redis.client.Redis]:  # pragma
         return (RedisStatus.CONN_ERROR, None)
     except redis.AuthenticationError:
         return (RedisStatus.AUTH_ERROR, None)
+    except redis.ConnectionError:
+        return (RedisStatus.CONN_ERROR, None)
 
 
 def _connect_fake() -> Tuple[RedisStatus, redis.client.Redis]:
