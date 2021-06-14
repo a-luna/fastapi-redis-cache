@@ -1,26 +1,26 @@
-## `fastapi-redis-cache`
+## fastapi-redis-cache
 
 [![PyPI version](https://badge.fury.io/py/fastapi-redis-cache.svg)](https://badge.fury.io/py/fastapi-redis-cache)
 ![PyPI - Downloads](https://img.shields.io/pypi/dm/fastapi-redis-cache?color=%234DC71F)
 ![PyPI - License](https://img.shields.io/pypi/l/fastapi-redis-cache?color=%25234DC71F)
 ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/fastapi-redis-cache)
 [![Maintainability](https://api.codeclimate.com/v1/badges/ec0b1d7afb21bd8c23dc/maintainability)](https://codeclimate.com/github/a-luna/fastapi-redis-cache/maintainability)
-[![Test Coverage](https://api.codeclimate.com/v1/badges/ec0b1d7afb21bd8c23dc/test_coverage)](https://codeclimate.com/github/a-luna/fastapi-redis-cache/test_coverage)
+[![codecov](https://codecov.io/gh/a-luna/fastapi-redis-cache/branch/main/graph/badge.svg?token=dUaILJcgWY)](https://codecov.io/gh/a-luna/fastapi-redis-cache)
 
-### Features
+## Features
 
 - Cache response data for async and non-async path operation functions.
 - Lifetime of cached data is configured separately for each API endpoint.
 - Requests with `Cache-Control` header containing `no-cache` or `no-store` are handled correctly (all caching behavior is disabled).
 - Requests with `If-None-Match` header will receive a response with status `304 NOT MODIFIED` if `ETag` for requested resource matches header value.
 
-### Installation
+## Installation
 
 `pip install fastapi-redis-cache`
 
-### Usage
+## Usage
 
-#### Initialize Redis
+### Initialize Redis
 
 Create a `FastApiRedisCache` instance when your application starts by [defining an event handler for the `"startup"` event](https://fastapi.tiangolo.com/advanced/events/) as shown below:
 
@@ -54,7 +54,7 @@ After creating the instance, you must call the `init` method. The only required 
 - `ignore_arg_types` (`List[Type[object]]`) &mdash; Cache keys are created (in part) by combining the name and value of each argument used to invoke a path operation function. If any of the arguments have no effect on the response (such as a `Request` or `Response` object), including their type in this list will ignore those arguments when the key is created. (_Optional_, defaults to `[Request, Response]`)
   - The example shown here includes the `sqlalchemy.orm.Session` type, if your project uses SQLAlchemy as a dependency ([as demonstrated in the FastAPI docs](https://fastapi.tiangolo.com/tutorial/sql-databases/)), you should include `Session` in `ignore_arg_types` in order for cache keys to be created correctly ([More info](#cache-keys)).
 
-#### `@cache` Decorator
+### `@cache` Decorator
 
 Decorating a path function with `@cache` enables caching for the endpoint. **Response data is only cached for `GET` operations**, decorating path functions for other HTTP method types will have no effect. If no arguments are provided, responses will be set to expire after one year, which, historically, is the correct way to mark data that "never expires".
 
@@ -137,7 +137,7 @@ def partial_cache_two_hours(response: Response):
     return {"success": True, "message": "this data should be cached for two hours"}
 ```
 
-#### Response Headers
+### Response Headers
 
 Below is an example HTTP response for the `/dynamic_data` endpoint. The `cache-control`, `etag`, `expires`, and `x-fastapi-cache` headers are added because of the `@cache` decorator:
 
@@ -167,14 +167,14 @@ If this request was made from a web browser, and a request for the same resource
 
 Similarly, if a request is sent with the `cache-control` header containing `no-cache` or `no-store`, all caching behavior will be disabled and the response will be generated and sent as if endpoint had not been decorated with `@cache`.
 
-#### Cache Keys
+### Cache Keys
 
 Consider the `/get_user` API route defined below. This is the first path function we have seen where the response depends on the value of an argument (`user_id: int`). This is a typical CRUD operation where `user_id` is used to retrieve a `User` record from a database. The API route also includes a dependency that injects a `Session` object (`db`) into the function, [per the instructions from the FastAPI docs](https://fastapi.tiangolo.com/tutorial/sql-databases/#create-a-dependency):
 
 ```python
 @app.get("/get_user", response_model=schemas.User)
 @cache(expire=3600)
-def get_item(user_id: int, db: Session = Depends(get_db)):
+def get_user(user_id: int, db: Session = Depends(get_db)):
     return db.query(models.User).filter(models.User.id == user_id).first()
 ```
 
@@ -227,7 +227,7 @@ INFO:     127.0.0.1:50761 - "GET /get_user?user_id=1 HTTP/1.1" 200 OK
 
 Now, every request for the same `user_id` generates the same key value (`myapi-cache:api.get_user(user_id=1)`). As expected, the first request adds the key/value pair to the cache, and each subsequent request retrieves the value from the cache based on the key.
 
-#### Cache Keys Pt 2.
+### Cache Keys Pt 2.
 
 What about this situation? You create a custom dependency for your API that performs input validation, but you can't ignore it because _**it does**_ have an effect on the response data. There's a simple solution for that, too.
 
@@ -267,6 +267,6 @@ class MLBGameDate:
 
 Please note the `__str__` method that overrides the default behavior. This way, instead of `<MLBGameDate object at 0x11c7e35e0>`, the value will be formatted as, for example, `2019-05-09`. You can use this strategy whenever you have an argument that has en effect on the response data but converting that argument to a string results in a value containing the object's memory location.
 
-### Questions/Contributions
+## Questions/Contributions
 
 If you have any questions, please open an issue. Any suggestions and contributions are absolutely welcome. This is still a very small and young project, I plan on adding a feature roadmap and further documentation in the near future.
