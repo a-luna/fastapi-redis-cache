@@ -110,6 +110,13 @@ class FastApiRedisCache(metaclass=MetaSingleton):
         return self.get_etag(cached_data) in check_etags
 
     def add_to_cache(self, key: str, value: Dict, expire: int) -> bool:
+        if not isinstance(value, dict):  # pragma: no cover
+            if self.hasmethod(value, 'dict'):
+                value = value.dict()
+            else:
+                message = f"Object of type {type(value)} is not JSON-serializable"
+                self.log(RedisEvent.FAILED_TO_CACHE_KEY, msg=message, key=key)
+                return False
         cached = self.redis.set(name=key, value=serialize_json(value), ex=expire)
         if cached:
             self.log(RedisEvent.KEY_ADDED_TO_CACHE, key=key)
@@ -151,3 +158,9 @@ class FastApiRedisCache(metaclass=MetaSingleton):
     def get_log_time():
         """Get a timestamp to include with a log message."""
         return datetime.now().strftime(LOG_TIMESTAMP)
+
+    @staticmethod
+    def hasmethod(obj, method_name):
+        """Return True if obj.method_name exists and is callable. Otherwise, return False."""
+        obj_method = getattr(obj, method_name, None)
+        return callable(obj_method) if obj_method else False
