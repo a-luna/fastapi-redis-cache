@@ -96,7 +96,39 @@ def get_dynamic_data(request: Request, response: Response):
 
 > **NOTE!** `expire` can be either an `int` value or `timedelta` object. When the TTL is very short (like the example above) this results in a decorator that is expressive and requires minimal effort to parse visually. For durations an hour or longer (e.g., `@cache(expire=86400)`), IMHO, using a `timedelta` object is much easier to grok (`@cache(expire=timedelta(days=1))`).
 
-Additionally, the decorators listed below define several common durations and can be used in place of the `@cache` decorator:
+#### Response Headers
+
+A response from the `/dynamic_data` endpoint showing all header values is given below:
+
+```console
+$ http "http://127.0.0.1:8000/dynamic_data"
+  HTTP/1.1 200 OK
+  cache-control: max-age=29
+  content-length: 72
+  content-type: application/json
+  date: Wed, 21 Apr 2021 07:54:33 GMT
+  etag: W/-5480454928453453778
+  expires: Wed, 21 Apr 2021 07:55:03 GMT
+  server: uvicorn
+  x-fastapi-cache: Hit
+
+  {
+      "message": "this data should only be cached temporarily",
+      "success": true
+  }
+```
+
+- The `x-fastapi-cache` header field indicates that this response was found in the Redis cache (a.k.a. a `Hit`). The only other possible value for this field is `Miss`.
+- The `expires` field and `max-age` value in the `cache-control` field indicate that this response will be considered fresh for 29 seconds. This is expected since `expire=30` was specified in the `@cache` decorator.
+- The `etag` field is an identifier that is created by converting the response data to a string and applying a hash function. If a request containing the `if-none-match` header is received, any `etag` value(s) included in the request will be used to determine if the data requested is the same as the data stored in the cache. If they are the same, a `304 NOT MODIFIED` response will be sent. If they are not the same, the cached data will be sent with a `200 OK` response.
+
+These header fields are used by your web browser's cache to avoid sending unnecessary requests. After receiving the response shown above, if a user requested the same resource before the `expires` time, the browser wouldn't send a request to the FastAPI server. Instead, the cached response would be served directly from disk.
+
+Of course, this assumes that the browser is configured to perform caching. If the browser sends a request with the `cache-control` header containing `no-cache` or `no-store`, the `cache-control`, `etag`, `expires`, and `x-fastapi-cache` response header fields will not be included and the response data will not be stored in Redis.
+
+#### Pre-defined Lifetimes
+
+The decorators listed below define several common durations and can be used in place of the `@cache` decorator:
 
 - `@cache_one_minute`
 - `@cache_one_hour`
@@ -137,78 +169,48 @@ def partial_cache_two_hours(response: Response):
     return {"success": True, "message": "this data should be cached for two hours"}
 ```
 
-### Response Headers
-
-Below is an example HTTP response for the `/dynamic_data` endpoint. The `cache-control`, `etag`, `expires`, and `x-fastapi-cache` headers are added because of the `@cache` decorator:
-
-```console
-$ http "http://127.0.0.1:8000/dynamic_data"
-  HTTP/1.1 200 OK
-  cache-control: max-age=29
-  content-length: 72
-  content-type: application/json
-  date: Wed, 21 Apr 2021 07:54:33 GMT
-  etag: W/-5480454928453453778
-  expires: Wed, 21 Apr 2021 07:55:03 GMT
-  server: uvicorn
-  x-fastapi-cache: Hit
-
-  {
-      "message": "this data should only be cached temporarily",
-      "success": true
-  }
-```
-
-- The `x-fastapi-cache` header field indicates that this response was found in the Redis cache (a.k.a. a `Hit`). The only other possible value for this field is `Miss`.
-- The `expires` field and `max-age` value in the `cache-control` field indicate that this response will be considered fresh for 29 seconds. This is expected since `expire=30` was specified in the `@cache` decorator.
-- The `etag` field is an identifier that is created by converting the response data to a string and applying a hash function. If a request containing the `if-none-match` header is received, the `etag` value will be used to determine if the requested resource has been modified.
-
-If this request was made from a web browser, and a request for the same resource was sent before the cached response expires, the browser would automatically serve the cached version and the request would never even be sent to the FastAPI server.
-
-Similarly, if a request is sent with the `cache-control` header containing `no-cache` or `no-store`, all caching behavior will be disabled and the response will be generated and sent as if endpoint had not been decorated with `@cache`.
-
 ### Cache Keys
 
-Consider the `/get_user` API route defined below. This is the first path function we have seen where the response depends on the value of an argument (`user_id: int`). This is a typical CRUD operation where `user_id` is used to retrieve a `User` record from a database. The API route also includes a dependency that injects a `Session` object (`db`) into the function, [per the instructions from the FastAPI docs](https://fastapi.tiangolo.com/tutorial/sql-databases/#create-a-dependency):
+Consider the `/get_user` API route defined below. This is the first path function we have seen where the response depends on the value of an argument (`id: int`). This is a typical CRUD operation where `id` is used to retrieve a `User` record from a database. The API route also includes a dependency that injects a `Session` object (`db`) into the function, [per the instructions from the FastAPI docs](https://fastapi.tiangolo.com/tutorial/sql-databases/#create-a-dependency):
 
 ```python
 @app.get("/get_user", response_model=schemas.User)
 @cache(expire=3600)
-def get_user(user_id: int, db: Session = Depends(get_db)):
-    return db.query(models.User).filter(models.User.id == user_id).first()
+def get_user(id: int, db: Session = Depends(get_db)):
+    return db.query(models.User).filter(models.User.id == id).first()
 ```
 
 In the [Initialize Redis](#initialize-redis) section of this document, the `FastApiRedisCache.init` method was called with `ignore_arg_types=[Request, Response, Session]`. Why is it necessary to include `Session` in this list?
 
-Before we can answer that question, we must understand how a cache key is created. In order to create a unique identifier for the data sent in response to an API request, the following values are combined:
+Before we can answer that question, we must understand how a cache key is created. If the following request was received: `GET /get_user?id=1`, the cache key generated would be `myapi-cache:api.get_user(id=1)`.
 
-1) The optional `prefix` value provided as an argument to the `FastApiRedisCache.init` method (`"myapi-cache"`).
-2) The module containing the path function (`"api"`).
-3) The name of the path function (`"get_user"`).
-4) The name and value of all arguments to the path function **EXCEPT for arguments with a type that exists in** `ignore_arg_types` (`"user_id=1"`).
+The source of each value used to construct this cache key is given below:
 
-Therefore, the cache key in this example will be `"myapi-cache:api.get_user(user_id=1)"`).
+1) The optional `prefix` value provided as an argument to the `FastApiRedisCache.init` method => `"myapi-cache"`.
+2) The module containing the path function => `"api"`.
+3) The name of the path function => `"get_user"`.
+4) The name and value of all arguments to the path function **EXCEPT for arguments with a type that exists in** `ignore_arg_types` => `"id=1"`.
 
-Even though `db` is an argument to the path function, it is not included in the cache key because it is a `Session` type. If `Session` had not been included in the `ignore_arg_types` list, caching would be completely broken.
+Since `Session` is included in `ignore_arg_types`, the `db` argument was not included in the cache key when **Step 4** was performed.
 
-To understand why this is the case, see if you can figure out what is happening in the log messages below:
+If `Session` had not been included in `ignore_arg_types`, caching would be completely broken. To understand why this is the case, see if you can figure out what is happening in the log messages below:
 
 ```console
 INFO:uvicorn.error:Application startup complete.
-INFO:fastapi_redis_cache.client: 04/23/2021 07:04:12 PM | KEY_ADDED_TO_CACHE: key=myapi-cache:api.get_user(user_id=1,db=<sqlalchemy.orm.session.Session object at 0x11b9fe550>)
-INFO:     127.0.0.1:50761 - "GET /get_user?user_id=1 HTTP/1.1" 200 OK
-INFO:fastapi_redis_cache.client: 04/23/2021 07:04:15 PM | KEY_ADDED_TO_CACHE: key=myapi-cache:api.get_user(user_id=1,db=<sqlalchemy.orm.session.Session object at 0x11c7f73a0>)
-INFO:     127.0.0.1:50761 - "GET /get_user?user_id=1 HTTP/1.1" 200 OK
-INFO:fastapi_redis_cache.client: 04/23/2021 07:04:17 PM | KEY_ADDED_TO_CACHE: key=myapi-cache:api.get_user(user_id=1,db=<sqlalchemy.orm.session.Session object at 0x11c7e35e0>)
-INFO:     127.0.0.1:50761 - "GET /get_user?user_id=1 HTTP/1.1" 200 OK
+INFO:fastapi_redis_cache.client: 04/23/2021 07:04:12 PM | KEY_ADDED_TO_CACHE: key=myapi-cache:api.get_user(id=1,db=<sqlalchemy.orm.session.Session object at 0x11b9fe550>)
+INFO:     127.0.0.1:50761 - "GET /get_user?id=1 HTTP/1.1" 200 OK
+INFO:fastapi_redis_cache.client: 04/23/2021 07:04:15 PM | KEY_ADDED_TO_CACHE: key=myapi-cache:api.get_user(id=1,db=<sqlalchemy.orm.session.Session object at 0x11c7f73a0>)
+INFO:     127.0.0.1:50761 - "GET /get_user?id=1 HTTP/1.1" 200 OK
+INFO:fastapi_redis_cache.client: 04/23/2021 07:04:17 PM | KEY_ADDED_TO_CACHE: key=myapi-cache:api.get_user(id=1,db=<sqlalchemy.orm.session.Session object at 0x11c7e35e0>)
+INFO:     127.0.0.1:50761 - "GET /get_user?id=1 HTTP/1.1" 200 OK
 ```
 
-The log messages indicate that three requests were received for the same endpoint, with the same arguments (`GET /get_user?user_id=1`). However, the cache key that is created is different for each request:
+The log messages indicate that three requests were received for the same endpoint, with the same arguments (`GET /get_user?id=1`). However, the cache key that is created is different for each request:
 
 ```console
-KEY_ADDED_TO_CACHE: key=myapi-cache:api.get_user(user_id=1,db=<sqlalchemy.orm.session.Session object at 0x11b9fe550>
-KEY_ADDED_TO_CACHE: key=myapi-cache:api.get_user(user_id=1,db=<sqlalchemy.orm.session.Session object at 0x11c7f73a0>
-KEY_ADDED_TO_CACHE: key=myapi-cache:api.get_user(user_id=1,db=<sqlalchemy.orm.session.Session object at 0x11c7e35e0>
+KEY_ADDED_TO_CACHE: key=myapi-cache:api.get_user(id=1,db=<sqlalchemy.orm.session.Session object at 0x11b9fe550>
+KEY_ADDED_TO_CACHE: key=myapi-cache:api.get_user(id=1,db=<sqlalchemy.orm.session.Session object at 0x11c7f73a0>
+KEY_ADDED_TO_CACHE: key=myapi-cache:api.get_user(id=1,db=<sqlalchemy.orm.session.Session object at 0x11c7e35e0>
 ```
 
 The value of each argument is added to the cache key by calling `str(arg)`. The `db` object includes the memory location when converted to a string, causing the same response data to be cached under three different keys! This is obviously not what we want.
@@ -217,15 +219,15 @@ The correct behavior (with `Session` included in `ignore_arg_types`) is shown be
 
 ```console
 INFO:uvicorn.error:Application startup complete.
-INFO:fastapi_redis_cache.client: 04/23/2021 07:04:12 PM | KEY_ADDED_TO_CACHE: key=myapi-cache:api.get_user(user_id=1)
-INFO:     127.0.0.1:50761 - "GET /get_user?user_id=1 HTTP/1.1" 200 OK
-INFO:fastapi_redis_cache.client: 04/23/2021 07:04:12 PM | KEY_FOUND_IN_CACHE: key=myapi-cache:api.get_user(user_id=1)
-INFO:     127.0.0.1:50761 - "GET /get_user?user_id=1 HTTP/1.1" 200 OK
-INFO:fastapi_redis_cache.client: 04/23/2021 07:04:12 PM | KEY_FOUND_IN_CACHE: key=myapi-cache:api.get_user(user_id=1)
-INFO:     127.0.0.1:50761 - "GET /get_user?user_id=1 HTTP/1.1" 200 OK
+INFO:fastapi_redis_cache.client: 04/23/2021 07:04:12 PM | KEY_ADDED_TO_CACHE: key=myapi-cache:api.get_user(id=1)
+INFO:     127.0.0.1:50761 - "GET /get_user?id=1 HTTP/1.1" 200 OK
+INFO:fastapi_redis_cache.client: 04/23/2021 07:04:12 PM | KEY_FOUND_IN_CACHE: key=myapi-cache:api.get_user(id=1)
+INFO:     127.0.0.1:50761 - "GET /get_user?id=1 HTTP/1.1" 200 OK
+INFO:fastapi_redis_cache.client: 04/23/2021 07:04:12 PM | KEY_FOUND_IN_CACHE: key=myapi-cache:api.get_user(id=1)
+INFO:     127.0.0.1:50761 - "GET /get_user?id=1 HTTP/1.1" 200 OK
 ```
 
-Now, every request for the same `user_id` generates the same key value (`myapi-cache:api.get_user(user_id=1)`). As expected, the first request adds the key/value pair to the cache, and each subsequent request retrieves the value from the cache based on the key.
+Now, every request for the same `id` generates the same key value (`myapi-cache:api.get_user(id=1)`). As expected, the first request adds the key/value pair to the cache, and each subsequent request retrieves the value from the cache based on the key.
 
 ### Cache Keys Pt 2.
 
