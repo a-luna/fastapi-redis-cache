@@ -110,14 +110,14 @@ class FastApiRedisCache(metaclass=MetaSingleton):
         return self.get_etag(cached_data) in check_etags
 
     def add_to_cache(self, key: str, value: Dict, expire: int) -> bool:
-        if not isinstance(value, dict):  # pragma: no cover
-            if self.hasmethod(value, 'dict'):
-                value = value.dict()
-            else:
-                message = f"Object of type {type(value)} is not JSON-serializable"
-                self.log(RedisEvent.FAILED_TO_CACHE_KEY, msg=message, key=key)
-                return False
-        cached = self.redis.set(name=key, value=serialize_json(value), ex=expire)
+        response_data = None
+        try:
+            response_data = serialize_json(value)
+        except TypeError:
+            message = f"Object of type {type(value)} is not JSON-serializable"
+            self.log(RedisEvent.FAILED_TO_CACHE_KEY, msg=message, key=key)
+            return False
+        cached = self.redis.set(name=key, value=response_data, ex=expire)
         if cached:
             self.log(RedisEvent.KEY_ADDED_TO_CACHE, key=key)
         else:  # pragma: no cover
