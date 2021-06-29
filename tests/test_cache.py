@@ -144,3 +144,15 @@ def test_partial_cache_one_hour():
     assert match and int(match.groupdict()["ttl"]) == 3600
     assert "expires" in response.headers
     assert "etag" in response.headers
+
+
+def test_cache_invalid_type():
+    # Simple test that verifies the correct behavior when a value that is not JSON-serializable is returned
+    # as response data
+    with pytest.raises(ValueError):
+        response = client.get("/cache_invalid_type")
+        assert response.status_code == 200
+        assert "x-fastapi-cache" not in response.headers
+        assert "cache-control" not in response.headers
+        assert "expires" not in response.headers
+        assert "etag" not in response.headers
