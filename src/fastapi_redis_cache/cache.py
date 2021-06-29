@@ -89,6 +89,7 @@ async def get_api_response_async(func, *args, **kwargs):
 
 
 def calculate_ttl(expire: Union[int, timedelta]) -> int:
+    """"Converts expire time to total seconds and ensures that ttl is capped at one year."""
     if isinstance(expire, timedelta):
         expire = int(expire.total_seconds())
     return min(expire, ONE_YEAR_IN_SECONDS)
