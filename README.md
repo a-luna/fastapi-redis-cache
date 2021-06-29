@@ -1,4 +1,4 @@
-## fastapi-redis-cache
+## fastapi-redis-cache <!-- omit in toc -->
 
 [![PyPI version](https://badge.fury.io/py/fastapi-redis-cache.svg)](https://badge.fury.io/py/fastapi-redis-cache)
 ![PyPI - Downloads](https://img.shields.io/pypi/dm/fastapi-redis-cache?color=%234DC71F)
@@ -6,6 +6,17 @@
 ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/fastapi-redis-cache)
 [![Maintainability](https://api.codeclimate.com/v1/badges/ec0b1d7afb21bd8c23dc/maintainability)](https://codeclimate.com/github/a-luna/fastapi-redis-cache/maintainability)
 [![codecov](https://codecov.io/gh/a-luna/fastapi-redis-cache/branch/main/graph/badge.svg?token=dUaILJcgWY)](https://codecov.io/gh/a-luna/fastapi-redis-cache)
+
+- [Features](#features)
+- [Installation](#installation)
+- [Usage](#usage)
+  - [Initialize Redis](#initialize-redis)
+  - [`@cache` Decorator](#cache-decorator)
+    - [Response Headers](#response-headers)
+    - [Pre-defined Lifetimes](#pre-defined-lifetimes)
+  - [Cache Keys](#cache-keys)
+  - [Cache Keys Pt 2.](#cache-keys-pt-2)
+- [Questions/Contributions](#questionscontributions)
 
 ## Features
 
