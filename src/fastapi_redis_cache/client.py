@@ -158,9 +158,3 @@ class FastApiRedisCache(metaclass=MetaSingleton):
     def get_log_time():
         """Get a timestamp to include with a log message."""
         return datetime.now().strftime(LOG_TIMESTAMP)
-
-    @staticmethod
-    def hasmethod(obj, method_name):
-        """Return True if obj.method_name exists and is callable. Otherwise, return False."""
-        obj_method = getattr(obj, method_name, None)
-        return callable(obj_method) if obj_method else False

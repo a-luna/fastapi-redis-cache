@@ -1,9 +1,10 @@
+import logging
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 from fastapi import FastAPI, Request, Response
 
-from fastapi_redis_cache import cache, cache_one_hour
+from fastapi_redis_cache import cache, cache_one_hour, cache_one_minute
 
 app = FastAPI(title="FastAPI Redis Cache Test App")
 
@@ -15,9 +16,9 @@ def cache_never_expire(request: Request, response: Response):
 
 
 @app.get("/cache_expires")
-@cache(expire=timedelta(seconds=8))
+@cache(expire=timedelta(seconds=5))
 async def cache_expires():
-    return {"success": True, "message": "this data should be cached for eight seconds"}
+    return {"success": True, "message": "this data should be cached for five seconds"}
 
 
 @app.get("/cache_json_encoder")
@@ -35,3 +36,12 @@ def cache_json_encoder():
 @cache_one_hour()
 def partial_cache_one_hour(response: Response):
     return {"success": True, "message": "this data should be cached for one hour"}
+
+
+@app.get("/cache_invalid_type")
+@cache_one_minute()
+def cache_invalid_type(request: Request, response: Response):
+    logging.basicConfig()
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+    return logger
