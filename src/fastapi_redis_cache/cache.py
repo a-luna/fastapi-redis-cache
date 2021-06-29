@@ -46,14 +46,24 @@ def cache(*, expire: Union[int, timedelta] = ONE_YEAR_IN_SECONDS):
             key = redis_cache.get_cache_key(func, *args, **kwargs)
             ttl, in_cache = redis_cache.check_cache(key)
             if in_cache:
+                redis_cache.set_response_headers(response, True, deserialize_json(in_cache), ttl)
                 if redis_cache.requested_resource_not_modified(request, in_cache):
                     response.status_code = int(HTTPStatus.NOT_MODIFIED)
-                    return response
-                cached_data = deserialize_json(in_cache)
-                redis_cache.set_response_headers(response, cache_hit=True, response_data=cached_data, ttl=ttl)
-                if create_response_directly:
-                    return Response(content=in_cache, media_type="application/json", headers=response.headers)
-                return cached_data
+                    return (
+                        Response(
+                            content=None,
+                            status_code=response.status_code,
+                            media_type="application/json",
+                            headers=response.headers,
+                        )
+                        if create_response_directly
+                        else response
+                    )
+                return (
+                    Response(content=in_cache, media_type="application/json", headers=response.headers)
+                    if create_response_directly
+                    else deserialize_json(in_cache)
+                )
             response_data = await get_api_response_async(func, *args, **kwargs)
             ttl = calculate_ttl(expire)
             cached = redis_cache.add_to_cache(key, response_data, ttl)

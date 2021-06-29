@@ -113,8 +113,18 @@ def test_if_none_match():
     invalid_etag = "W/-5480454928453453778"
     response = client.get("/cache_never_expire", headers={"if-none-match": f"{etag}, {invalid_etag}"})
     assert response.status_code == 304
+    assert not response.content
+    assert "x-fastapi-cache" in response.headers and response.headers["x-fastapi-cache"] == "Hit"
+    assert "cache-control" in response.headers
+    assert "expires" in response.headers
+    assert "etag" in response.headers
     response = client.get("/cache_never_expire", headers={"if-none-match": "*"})
     assert response.status_code == 304
+    assert not response.content
+    assert "x-fastapi-cache" in response.headers and response.headers["x-fastapi-cache"] == "Hit"
+    assert "cache-control" in response.headers
+    assert "expires" in response.headers
+    assert "etag" in response.headers
     response = client.get("/cache_never_expire", headers={"if-none-match": invalid_etag})
     assert response.status_code == 200
     assert response.json() == {"success": True, "message": "this data can be cached indefinitely"}
