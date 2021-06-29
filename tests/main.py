@@ -16,9 +16,9 @@ def cache_never_expire(request: Request, response: Response):
 
 
 @app.get("/cache_expires")
-@cache(expire=timedelta(seconds=8))
+@cache(expire=timedelta(seconds=5))
 async def cache_expires():
-    return {"success": True, "message": "this data should be cached for eight seconds"}
+    return {"success": True, "message": "this data should be cached for five seconds"}
 
 
 @app.get("/cache_json_encoder")
