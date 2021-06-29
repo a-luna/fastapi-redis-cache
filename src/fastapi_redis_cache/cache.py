@@ -69,11 +69,12 @@ def cache(*, expire: Union[int, timedelta] = ONE_YEAR_IN_SECONDS):
             cached = redis_cache.add_to_cache(key, response_data, ttl)
             if cached:
                 redis_cache.set_response_headers(response, cache_hit=False, response_data=response_data, ttl=ttl)
-            if create_response_directly:
-                return Response(
-                    content=serialize_json(response_data),
-                    media_type="application/json",
-                    headers=response.headers,
+                return (
+                    Response(
+                        content=serialize_json(response_data), media_type="application/json", headers=response.headers
+                    )
+                    if create_response_directly
+                    else response_data
                 )
             return response_data
 
