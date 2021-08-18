@@ -10,6 +10,7 @@ from fastapi_redis_cache.client import HTTP_TIME
 
 from fastapi_redis_cache.util import deserialize_json
 from tests.main import app
+from tests.main import REDIS_EXPIRE_SECONDS, WEB_EXPIRE_SECONDS
 
 client = TestClient(app)
 MAX_AGE_REGEX = re.compile(r"max-age=(?P<ttl>\d+)")
@@ -190,7 +191,7 @@ def test_if_none_match():
     assert "etag" in response.headers
 
 
-def test_partial_cache_one_hour():
+def test_cache_one_hour():
     # Simple test that verifies that the @cache_for_one_hour partial function version of the @cache decorator
     # is working correctly.
     response = client.get("/cache_one_hour")
@@ -214,3 +215,98 @@ def test_cache_invalid_type():
         assert "cache-control" not in response.headers
         assert "expires" not in response.headers
         assert "etag" not in response.headers
+
+
+def test_cache_web_expires_before_redis():
+    target_endpoint = "/cache_web_expires_before_redis"
+    expected_response = {"success": True, "message": "this data should be web cached for five seconds"}
+
+    # Store time when response data was added to cache
+    added_at_utc = datetime.utcnow()
+
+    # Initial request, X-FastAPI-Cache header field should equal "Miss"
+    response = client.get(target_endpoint)
+    assert response.status_code == 200
+    assert response.json() == expected_response
+    assert "x-fastapi-cache" in response.headers and response.headers["x-fastapi-cache"] == "Miss"
+    assert "expires" in response.headers
+    assert "etag" in response.headers
+
+    # Store 'max-age' value of 'cache-control' header field
+    assert "cache-control" in response.headers
+    match = MAX_AGE_REGEX.search(response.headers.get("cache-control"))
+    assert match
+    miss_ttl = int(match.groupdict()["ttl"])
+    assert miss_ttl <= WEB_EXPIRE_SECONDS
+
+    # Store eTag value from response header
+    check_etag = response.headers["etag"]
+
+    # Send request, X-FastAPI-Cache header field should now equal "Hit"
+    response = client.get(target_endpoint)
+    assert response.status_code == 200
+    assert response.json() == expected_response
+    assert "x-fastapi-cache" in response.headers and response.headers["x-fastapi-cache"] == "Hit"
+
+    # Verify eTag value matches the value stored from the initial response
+    assert "etag" in response.headers
+    assert response.headers["etag"] == check_etag
+
+    # Store 'max-age' value of 'cache-control' header field
+    assert "cache-control" in response.headers
+    match = MAX_AGE_REGEX.search(response.headers.get("cache-control"))
+    assert match
+    hit_ttl = int(match.groupdict()["ttl"])
+    assert hit_ttl <= miss_ttl
+
+    # Store value of 'expires' header field
+    assert "expires" in response.headers
+    expire_at_utc = datetime.strptime(response.headers["expires"], HTTP_TIME)
+
+    # Wait until web expiration time has passed
+    now = datetime.utcnow()
+    time.sleep((expire_at_utc - now).total_seconds())
+    # Wait any additional time neecessary to ensure the web expiration has passed
+    now = datetime.utcnow()
+    while expire_at_utc > now:
+        time.sleep(1)
+        now = datetime.utcnow()
+
+    # Wait one additional second to ensure the web cache has expired
+    time.sleep(1)
+
+    # Verify that the time elapsed since the data was added to the cache is greater than the ttl value
+    second_request_utc = datetime.utcnow()
+    elapsed = (second_request_utc - added_at_utc).total_seconds()
+    assert elapsed > hit_ttl
+
+    # Send request, X-FastAPI-Cache header field should equal "Hit" since the Redis cached value has a longer
+    # lifespan than the web cache value
+    response = client.get(target_endpoint)
+    assert response.status_code == 200
+    assert response.json() == expected_response
+    assert "x-fastapi-cache" in response.headers and response.headers["x-fastapi-cache"] == "Hit"
+    assert "cache-control" in response.headers
+    assert "expires" in response.headers
+
+    # Check eTag value again. Since data is the same, the value should still match
+    assert "etag" in response.headers
+    assert response.headers["etag"] == check_etag
+
+    # Wait until Redis expiration time has passed
+    elapsed_since_added = (datetime.utcnow() - added_at_utc).total_seconds()
+    if elapsed_since_added < REDIS_EXPIRE_SECONDS:
+        time.sleep(REDIS_EXPIRE_SECONDS - elapsed_since_added)
+    # Wait any additional time neecessary, waiting an additional second to ensure Redis has
+    # deleted the response data
+    while (datetime.utcnow() - added_at_utc).total_seconds() < REDIS_EXPIRE_SECONDS:
+        time.sleep(1)
+
+    # Send request, X-FastAPI-Cache header field should equal "Miss" since the Redis cached value has now expired
+    response = client.get(target_endpoint)
+    assert response.status_code == 200
+    assert response.json() == expected_response
+    assert "x-fastapi-cache" in response.headers and response.headers["x-fastapi-cache"] == "Miss"
+    assert "cache-control" in response.headers
+    assert "expires" in response.headers
+    assert "etag" in response.headers
