@@ -34,8 +34,18 @@ def cache_json_encoder():
 
 @app.get("/cache_one_hour")
 @cache_one_hour()
-def partial_cache_one_hour(response: Response):
+def cache_one_hour(response: Response):
     return {"success": True, "message": "this data should be cached for one hour"}
+
+
+REDIS_EXPIRE_SECONDS = 10
+WEB_EXPIRE_SECONDS = 5
+
+
+@app.get("/cache_web_expires_before_redis")
+@cache(expire=REDIS_EXPIRE_SECONDS, web_expire=WEB_EXPIRE_SECONDS)
+async def cache_web_expires_before_redis(request: Request, response: Response):
+    return {"success": True, "message": "this data should be web cached for five seconds"}
 
 
 @app.get("/cache_invalid_type")

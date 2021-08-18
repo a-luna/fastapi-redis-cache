@@ -3,7 +3,7 @@ import asyncio
 from datetime import timedelta
 from functools import partial, update_wrapper, wraps
 from http import HTTPStatus
-from typing import Union
+from typing import Optional, Union
 
 from fastapi import Response
 
@@ -19,13 +19,20 @@ from fastapi_redis_cache.util import (
 )
 
 
-def cache(*, expire: Union[int, timedelta] = ONE_YEAR_IN_SECONDS):
+def cache(*, expire: Union[int, timedelta] = ONE_YEAR_IN_SECONDS, web_expire: Optional[Union[int, timedelta]] = None):
     """Enable caching behavior for the decorated function.
 
     Args:
         expire (Union[int, timedelta], optional): The number of seconds
             from now when the cached response should expire. Defaults to 31,536,000
             seconds (i.e., the number of seconds in one year).
+
+        web_expire (Optional[Union[int, timedelta]]): The number of seconds
+            from now when cached web responses should expire. This is achived
+            by setting the ``cache-control`` header's ``max-age`` directive to the
+            specified number of seconds. If ``web_expire`` is not specified, the
+            value specified for ``expire`` or the default value for ``expire``
+            will be used.
     """
 
     def outer_wrapper(func):
@@ -36,7 +43,9 @@ def cache(*, expire: Union[int, timedelta] = ONE_YEAR_IN_SECONDS):
             func_kwargs = kwargs.copy()
             request = func_kwargs.pop("request", None)
             response = func_kwargs.pop("response", None)
+
             create_response_directly = not response
+
             if create_response_directly:
                 response = Response()
             redis_cache = FastApiRedisCache()
@@ -46,6 +55,8 @@ def cache(*, expire: Union[int, timedelta] = ONE_YEAR_IN_SECONDS):
             key = redis_cache.get_cache_key(func, *args, **kwargs)
             ttl, in_cache = redis_cache.check_cache(key)
             if in_cache:
+                if web_expire is not None:
+                    ttl = calculate_ttl(web_expire)
                 redis_cache.set_response_headers(response, True, deserialize_json(in_cache), ttl)
                 if redis_cache.requested_resource_not_modified(request, in_cache):
                     response.status_code = int(HTTPStatus.NOT_MODIFIED)
@@ -65,10 +76,11 @@ def cache(*, expire: Union[int, timedelta] = ONE_YEAR_IN_SECONDS):
                     else deserialize_json(in_cache)
                 )
             response_data = await get_api_response_async(func, *args, **kwargs)
-            ttl = calculate_ttl(expire)
-            cached = redis_cache.add_to_cache(key, response_data, ttl)
+            redis_ttl = calculate_ttl(expire)
+            web_ttl = calculate_ttl(web_expire) if web_expire is not None else redis_ttl
+            cached = redis_cache.add_to_cache(key, response_data, redis_ttl)
             if cached:
-                redis_cache.set_response_headers(response, cache_hit=False, response_data=response_data, ttl=ttl)
+                redis_cache.set_response_headers(response, cache_hit=False, response_data=response_data, ttl=web_ttl)
                 return (
                     Response(
                         content=serialize_json(response_data), media_type="application/json", headers=response.headers
