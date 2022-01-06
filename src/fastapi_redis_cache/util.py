@@ -1,6 +1,9 @@
 import json
 from datetime import date, datetime
 from decimal import Decimal
+from uuid import UUID
+from enum import Enum
+from pydantic import BaseModel
 
 from dateutil import parser
 
@@ -28,6 +31,12 @@ class BetterJsonEncoder(json.JSONEncoder):
             return {"val": obj.strftime(DATE_ONLY), "_spec_type": str(date)}
         elif isinstance(obj, Decimal):
             return {"val": str(obj), "_spec_type": str(Decimal)}
+        elif isinstance(obj, BaseModel):
+            return obj.dict()
+        elif isinstance(obj, UUID):
+            return str(obj)
+        elif isinstance(obj, Enum):
+            return str(obj.value)
         else:  # pragma: no cover
             return super().default(obj)
 
