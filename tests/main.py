@@ -1,6 +1,7 @@
 import logging
 from datetime import date, datetime, timedelta
 from decimal import Decimal
+from .pydantic import SampleModel
 
 from fastapi import FastAPI, Request, Response
 
@@ -30,6 +31,12 @@ def cache_json_encoder():
         "finish_by": date(2021, 4, 21),
         "final_calc": Decimal(3.14),
     }
+
+
+@app.get("/cache_pydantic")
+@cache()
+def cache_json_list():
+    return SampleModel(key="it works!")
 
 
 @app.get("/cache_one_hour")

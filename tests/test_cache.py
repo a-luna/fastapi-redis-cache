@@ -123,6 +123,15 @@ def test_cache_json_encoder():
     assert json_dict["final_calc"] == Decimal(3.14)
 
 
+def test_cache_pydantic():
+    response = client.get("/cache_pydantic")
+    assert response.status_code == 200
+    response_json = response.json()
+    assert response_json == {
+        "key": "it works!"
+    }
+
+
 def test_cache_control_no_cache():
     # Simple test that verifies if a request is recieved with the cache-control header field containing "no-cache",
     # no caching behavior is performed
