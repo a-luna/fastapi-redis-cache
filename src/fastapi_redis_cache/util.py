@@ -3,6 +3,7 @@ from datetime import date, datetime
 from decimal import Decimal
 
 from dateutil import parser
+from pydantic import BaseModel
 
 DATETIME_AWARE = "%m/%d/%Y %I:%M:%S %p %z"
 DATE_ONLY = "%m/%d/%Y"
@@ -22,7 +23,9 @@ SERIALIZE_OBJ_MAP = {
 
 class BetterJsonEncoder(json.JSONEncoder):
     def default(self, obj):
-        if isinstance(obj, datetime):
+        if isinstance(obj, BaseModel):
+            return json.loads(obj.json())
+        elif isinstance(obj, datetime):
             return {"val": obj.strftime(DATETIME_AWARE), "_spec_type": str(datetime)}
         elif isinstance(obj, date):
             return {"val": obj.strftime(DATE_ONLY), "_spec_type": str(date)}
