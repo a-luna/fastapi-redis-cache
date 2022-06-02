@@ -84,25 +84,47 @@ def cache(*, expire: Union[int, timedelta] = ONE_YEAR_IN_SECONDS, fastapi_route:
 
     def standard_wrapper(func):
         @wraps(func)
-        async def inner_wrapper(*args, **kwargs):
+        async def inner_wrapper_async(*args, **kwargs):
             """Return cached value if one exists, otherwise evaluate the wrapped function and cache the result."""
 
             func_kwargs = kwargs.copy()
             redis_cache = FastApiRedisCache()
             if redis_cache.not_connected:
                 # if the redis client is not connected or request is not cacheable, no caching behavior is performed.
-                return await get_api_response_async(func, *args, **kwargs)
+                return await func(*args, **kwargs)
             key = redis_cache.get_cache_key(func, *args, **kwargs)
             ttl, in_cache = redis_cache.check_cache(key)
             if in_cache:
                 return deserialize_json(in_cache)
 
-            response_data = await get_api_response_async(func, *args, **kwargs)
+            response_data = await func(*args, **kwargs)
             ttl = calculate_ttl(expire)
             redis_cache.add_to_cache(key, response_data, ttl)
             return response_data
 
-        return inner_wrapper
+        @wraps(func)
+        def inner_wrapper_sync(*args, **kwargs):
+            """Return cached value if one exists, otherwise evaluate the wrapped function and cache the result."""
+
+            func_kwargs = kwargs.copy()
+            redis_cache = FastApiRedisCache()
+            if redis_cache.not_connected:
+                # if the redis client is not connected or request is not cacheable, no caching behavior is performed.
+                return func(*args, **kwargs)
+            key = redis_cache.get_cache_key(func, *args, **kwargs)
+            ttl, in_cache = redis_cache.check_cache(key)
+            if in_cache:
+                return deserialize_json(in_cache)
+
+            response_data = func(*args, **kwargs)
+            ttl = calculate_ttl(expire)
+            redis_cache.add_to_cache(key, response_data, ttl)
+            return response_data
+
+        if asyncio.iscoroutinefunction(func):
+            return inner_wrapper_async
+        else:
+            return inner_wrapper_sync
 
     if fastapi_route:
         return fastapi_route_wrapper
