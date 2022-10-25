@@ -39,6 +39,11 @@ def cache(*, expire: Union[int, timedelta] = ONE_YEAR_IN_SECONDS):
             create_response_directly = not response
             if create_response_directly:
                 response = Response()
+                # The response may get created with a 'content-length' header equal to 0. Of course, if the `func` function does return something, this header becomes a mismatch with the actual content.
+                # uvicorn is sensible to it and then raises a 'RuntimeError: Response content longer than Content-Length' exception.
+                # As a workaround, the 'content-length' header is cleared from the response.headers if it exists
+                if "content-length" in response.headers.keys():
+                    del response.headers["content-length"]
             redis_cache = FastApiRedisCache()
             if redis_cache.not_connected or redis_cache.request_is_not_cacheable(request):
                 # if the redis client is not connected or request is not cacheable, no caching behavior is performed.
