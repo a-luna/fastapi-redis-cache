@@ -8,3 +8,4 @@ pytest-cov==2.12.1
 pytest-flake8==1.0.7
 pytest-random-order==1.0.4
 requests==2.25.1
+idna>=3.7 # not directly required, pinned by Snyk to avoid a vulnerability
